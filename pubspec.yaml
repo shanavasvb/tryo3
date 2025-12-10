@@ -10,11 +10,12 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  fl_chart: ^0.69.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  google_fonts: ^6.2.1
 
   flutter_lints: ^6.0.0
 flutter:

@@ -1,167 +1,12 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tryo3_app/screens/history_screen.dart';
+import '../services/placeholder_data_service.dart';
 
-// DATA MODELS
 
-/// Represents a room/sensor cluster
-class SensorCluster {
-  final String id;
-  final String name;
-  final IconData icon;
-
-  const SensorCluster({
-    required this.id,
-    required this.name,
-    required this.icon,
-  });
-}
-
-/// Represents a single metric reading
-class MetricData {
-  final String title;
-  final String value;
-  final String unit;
-  final IconData icon;
-  final Color? color;
-
-  const MetricData({
-    required this.title,
-    required this.value,
-    required this.unit,
-    required this.icon,
-    this.color,
-  });
-}
-
-/// Represents a data point in the chart
-class ChartDataPoint {
-  final double x; // Time (0-24 hours)
-  final double y; // Value
-
-  const ChartDataPoint(this.x, this.y);
-}
-
-// ============================================
-// PLACEHOLDER DATA GENERATOR
-// ============================================
-
-class PlaceholderDataService {
-  static final _random = math.Random(42); // Fixed seed for consistent data
-
-  /// Get all available sensor clusters
-  static List<SensorCluster> getSensorClusters() {
-    return const [
-      SensorCluster(
-        id: 'living_room',
-        name: 'Living Room',
-        icon: Icons.weekend,
-      ),
-      SensorCluster(
-        id: 'bedroom',
-        name: 'Bedroom',
-        icon: Icons.bed,
-      ),
-      SensorCluster(
-        id: 'office',
-        name: 'Office',
-        icon: Icons.desk,
-      ),
-    ];
-  }
-
-  /// Get metrics for a specific room
-  static List<MetricData> getMetricsForRoom(String roomId) {
-    // Generate slightly different values based on room
-    final baseAQI = roomId == 'living_room' ? 75 : (roomId == 'bedroom' ? 68 : 82);
-    final baseTemp = roomId == 'living_room' ? 22 : (roomId == 'bedroom' ? 20 : 24);
-    final baseLux = roomId == 'living_room' ? 300 : (roomId == 'bedroom' ? 150 : 450);
-    final baseNoise = roomId == 'living_room' ? 45 : (roomId == 'bedroom' ? 35 : 52);
-
-    return [
-      MetricData(
-        title: 'Air Quality Index',
-        value: baseAQI.toString(),
-        unit: 'AQI',
-        icon: Icons.air,
-        color: _getAQIColor(baseAQI),
-      ),
-      MetricData(
-        title: 'Temperature',
-        value: baseTemp.toString(),
-        unit: '°C',
-        icon: Icons.thermostat,
-      ),
-      MetricData(
-        title: 'Light Lux',
-        value: baseLux.toString(),
-        unit: 'lux',
-        icon: Icons.lightbulb_outline,
-      ),
-      MetricData(
-        title: 'Pollution Level',
-        value: baseAQI < 50 ? 'Good' : (baseAQI < 100 ? 'Moderate' : 'Poor'),
-        unit: '',
-        icon: Icons.eco,
-        color: baseAQI < 50 ? Colors.green : (baseAQI < 100 ? Colors.orange : Colors.red),
-      ),
-      MetricData(
-        title: 'Noise Level',
-        value: baseNoise.toString(),
-        unit: 'dB',
-        icon: Icons.volume_up,
-      ),
-    ];
-  }
-
-  /// Generate chart data for AQI over 24 hours
-  static List<ChartDataPoint> getChartData(String roomId) {
-    final data = <ChartDataPoint>[];
-    final baseValue = roomId == 'living_room' ? 75.0 : (roomId == 'bedroom' ? 68.0 : 82.0);
-
-    // Generate data points for every hour (0-24)
-    for (int hour = 0; hour <= 24; hour++) {
-      // Simulate daily pattern: worse during cooking/activity hours
-      double variation = 0;
-      
-      // Morning spike (7-9 AM)
-      if (hour >= 7 && hour <= 9) {
-        final progress = (hour - 7) / 2.0;
-        variation = 15 * math.sin(progress * math.pi);
-      }
-      // Evening spike (18-20 / 6-8 PM)
-      else if (hour >= 18 && hour <= 20) {
-        final progress = (hour - 18) / 2.0;
-        variation = 20 * math.sin(progress * math.pi);
-      }
-      // Night time - lower values
-      else if (hour >= 22 || hour <= 5) {
-        variation = -10;
-      }
-
-      // Add smooth random noise
-      final noise = (_random.nextDouble() - 0.5) * 8;
-      final value = baseValue + variation + noise;
-
-      data.add(ChartDataPoint(hour.toDouble(), value.clamp(40, 130)));
-    }
-
-    return data;
-  }
-
-  /// Get color based on AQI value
-  static Color _getAQIColor(int aqi) {
-    if (aqi <= 50) return Colors.green;
-    if (aqi <= 100) return Colors.yellow.shade700;
-    if (aqi <= 150) return Colors.orange;
-    if (aqi <= 200) return Colors.red;
-    return Colors.purple;
-  }
-}
 
 // DASHBOARD SCREEN
-
-
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -200,7 +45,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _initializeData() {
     _clusters = PlaceholderDataService.getSensorClusters();
     _selectedClusterId = _clusters.first.id;
-    _currentMetrics = PlaceholderDataService.getMetricsForRoom(_selectedClusterId);
+    _currentMetrics = PlaceholderDataService.getMetricsForRoom(
+      _selectedClusterId,
+    );
     _chartData = PlaceholderDataService.getChartData(_selectedClusterId);
   }
 
@@ -212,10 +59,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeIn,
-      ),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
     );
   }
 
@@ -253,7 +97,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         break;
       case 1:
         debugPrint('History selected');
-        // Navigator.pushNamed(context, '/history');
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const HistoryScreen()),
+        );
         break;
       case 2:
         debugPrint('Settings selected');
@@ -303,9 +150,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       title: Text(
         'Dashboard',
-        style: GoogleFonts.manrope(
-          fontWeight: FontWeight.w600,
-        ),
+        style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
       ),
       centerTitle: true,
       elevation: 0,
@@ -434,7 +279,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildMetricsGrid(ThemeData theme) {
     // Separate metrics into grid items and full-width item
     final gridMetrics = _currentMetrics.take(4).toList();
-    final fullWidthMetric = _currentMetrics.length > 4 ? _currentMetrics[4] : null;
+    final fullWidthMetric = _currentMetrics.length > 4
+        ? _currentMetrics[4]
+        : null;
 
     return Column(
       children: [
@@ -672,7 +519,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     await Future.delayed(const Duration(milliseconds: 800));
 
     setState(() {
-      _currentMetrics = PlaceholderDataService.getMetricsForRoom(_selectedClusterId);
+      _currentMetrics = PlaceholderDataService.getMetricsForRoom(
+        _selectedClusterId,
+      );
       _chartData = PlaceholderDataService.getChartData(_selectedClusterId);
     });
 
@@ -724,11 +573,7 @@ class AQIChartPainter extends CustomPainter {
     // Horizontal grid lines
     for (int i = 0; i <= 4; i++) {
       final y = size.height * (i / 4);
-      canvas.drawLine(
-        Offset(0, y),
-        Offset(size.width, y),
-        gridPaint,
-      );
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
   }
 
@@ -751,10 +596,7 @@ class AQIChartPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [
-          color.withOpacity(0.3),
-          color.withOpacity(0.05),
-        ],
+        colors: [color.withOpacity(0.3), color.withOpacity(0.05)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.fill;
 
@@ -778,14 +620,14 @@ class AQIChartPainter extends CustomPainter {
 
     // Draw points at specific hours: 12AM, 6AM, 12PM, 6PM, 12AM
     final pointHours = [0, 6, 12, 18, 24];
-    
+
     for (final hour in pointHours) {
       // Find the data point closest to this hour
       final dataPoint = data.firstWhere(
         (p) => p.x == hour.toDouble(),
         orElse: () => data.first,
       );
-      
+
       final point = _getScreenPosition(dataPoint, size);
 
       // Outer circle (background color)
