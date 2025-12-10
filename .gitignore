@@ -1,0 +1,67 @@
+# Flutter/Dart/Pub related
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+flutter_*.png
+generated_plugin_registrant.dart
+
+# Environment & Secret files
+*.env
+*.secret
+
+# Android related
+**/android/local.properties
+**/android/app/google-services.json
+**/android/key.properties
+**/android/*.keystore
+**/android/*.jks
+
+# iOS related
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/Flutter.podspec
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Profile
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/.generated/
+
+# Xcode related
+*.xcworkspace
+*.xcuserdata/
+*.xcuserdatad/
+*.xcuserstate
+*.moved-aside
+DerivedData/
+
+# macOS related
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Pods/
+**/macos/.symlinks/
+**/macos/Flutter/ephemeral/
+
+# Windows related
+**/windows/flutter/generated_plugin_registrant.*
+**/windows/runner/GeneratedPluginRegistrant.*
+
+# Linux related
+**/linux/flutter/generated_plugin_registrant.*
+
+# Web related
+**/web/.dart_tool/
+**/web/.firebase/
+
+# IntelliJ / Android Studio / VSCode
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Other OS files
+.DS_Store
+Thumbs.db
+
