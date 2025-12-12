@@ -1,13 +1,15 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:tryo3_app/screens/history_screen.dart';
+import 'package:tryo3_app/widgets/app_bottom_nav_bar.dart';
+import 'package:tryo3_app/widgets/app_menu_button.dart';
+import 'package:tryo3_app/widgets/dashboard/metric_card.dart';
+import 'package:tryo3_app/widgets/dashboard/sensor_cluster_card.dart';
+import 'package:tryo3_app/widgets/dashboard/aqi_wave_chart.dart';
+import 'package:tryo3_app/widgets/common/error_state_widget.dart';
+import 'package:tryo3_app/widgets/common/loading_indicator.dart';
 import '../services/placeholder_data_service.dart';
 
-
-
-// DASHBOARD SCREEN
-
+/// Dashboard screen showing sensor clusters and real-time metrics
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -18,11 +20,12 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
   // State variables
-  late List<SensorCluster> _clusters;
-  late String _selectedClusterId;
-  late List<MetricData> _currentMetrics;
-  late List<ChartDataPoint> _chartData;
-  int _selectedNavIndex = 0;
+  List<SensorCluster> _clusters = [];
+  String? _selectedClusterId;
+  List<MetricData> _currentMetrics = [];
+  List<ChartDataPoint> _chartData = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
   // Animation controller
   late AnimationController _animationController;
@@ -36,19 +39,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void initState() {
     super.initState();
-    _initializeData();
     _initializeAnimations();
-    _animationController.forward();
+    _initializeData();
   }
 
-  /// Initialize placeholder data
-  void _initializeData() {
-    _clusters = PlaceholderDataService.getSensorClusters();
-    _selectedClusterId = _clusters.first.id;
-    _currentMetrics = PlaceholderDataService.getMetricsForRoom(
-      _selectedClusterId,
-    );
-    _chartData = PlaceholderDataService.getChartData(_selectedClusterId);
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   /// Initialize animations
@@ -59,54 +57,112 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
+  /// Initialize placeholder data with error handling
+  Future<void> _initializeData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      // Simulate network delay for realistic behavior
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      final clusters = PlaceholderDataService.getSensorClusters();
+
+      if (clusters.isEmpty) {
+        throw Exception('No sensor clusters available');
+      }
+
+      final selectedId = clusters.first.id;
+      final metrics = PlaceholderDataService.getMetricsForRoom(selectedId);
+      final chartData = PlaceholderDataService.getChartData(selectedId);
+
+      setState(() {
+        _clusters = clusters;
+        _selectedClusterId = selectedId;
+        _currentMetrics = metrics;
+        _chartData = chartData;
+        _isLoading = false;
+      });
+
+      _animationController.forward();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Failed to load dashboard data: ${e.toString()}';
+      });
+      debugPrint('Error initializing data: $e');
+    }
   }
 
   /// Handle room/cluster selection
-  void _onClusterSelected(String clusterId) {
+  Future<void> _onClusterSelected(String clusterId) async {
     if (_selectedClusterId == clusterId) return;
 
-    setState(() {
-      _selectedClusterId = clusterId;
-      _currentMetrics = PlaceholderDataService.getMetricsForRoom(clusterId);
-      _chartData = PlaceholderDataService.getChartData(clusterId);
-    });
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
 
-    // Replay animation for smooth transition
-    _animationController.reset();
-    _animationController.forward();
+      // Simulate data fetch
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      final metrics = PlaceholderDataService.getMetricsForRoom(clusterId);
+      final chartData = PlaceholderDataService.getChartData(clusterId);
+
+      if (metrics.isEmpty) {
+        throw Exception('No metrics available for this cluster');
+      }
+
+      setState(() {
+        _selectedClusterId = clusterId;
+        _currentMetrics = metrics;
+        _chartData = chartData;
+        _isLoading = false;
+      });
+
+      // Replay animation for smooth transition
+      _animationController.reset();
+      _animationController.forward();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Failed to load cluster data';
+      });
+      debugPrint('Error selecting cluster: $e');
+    }
   }
 
-  /// Handle bottom navigation tap
-  void _onNavItemTapped(int index) {
-    setState(() {
-      _selectedNavIndex = index;
-    });
-
-    // TODO: Navigate to different screens
-    switch (index) {
-      case 0:
-        debugPrint('Dashboard selected');
-        break;
-      case 1:
-        debugPrint('History selected');
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const HistoryScreen()),
-        );
-        break;
-      case 2:
-        debugPrint('Settings selected');
-        // Navigator.pushNamed(context, '/settings');
-        break;
-    }
+  /// Show coming soon dialog for unimplemented features
+  void _showComingSoonDialog(String feature) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Coming Soon',
+          style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          '$feature feature is under development and will be available soon.',
+          style: GoogleFonts.manrope(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -115,39 +171,90 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     return Scaffold(
       appBar: _buildAppBar(theme),
-      body: RefreshIndicator(
-        onRefresh: _handleRefresh,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(_horizontalPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSensorClustersSection(theme),
-              const SizedBox(height: _sectionSpacing),
-              _buildKeyMetricsSection(theme),
-              const SizedBox(height: _sectionSpacing),
-              _buildDetailedDataSection(theme),
-              const SizedBox(height: _horizontalPadding),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNavigation(theme),
+      body: _buildBody(theme),
+      bottomNavigationBar: const AppBottomNavBar(currentIndex: 0),
     );
   }
 
-  /// Builds the app bar
+  /// Build the main body with loading/error states
+  Widget _buildBody(ThemeData theme) {
+    if (_isLoading && _clusters.isEmpty) {
+      return const LoadingIndicator();
+    }
+
+    if (_errorMessage != null && _clusters.isEmpty) {
+      return ErrorStateWidget(
+        message: _errorMessage ?? 'An unknown error occurred',
+        onRetry: _initializeData,
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _handleRefresh,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(_horizontalPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSensorClustersSection(theme),
+            const SizedBox(height: _sectionSpacing),
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.all(32.0),
+                child: LoadingIndicator(),
+              )
+            else if (_errorMessage != null)
+              _buildInlineError()
+            else ...[
+              _buildKeyMetricsSection(theme),
+              const SizedBox(height: _sectionSpacing),
+              _buildDetailedDataSection(theme),
+            ],
+            const SizedBox(height: _horizontalPadding),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build inline error widget
+  Widget _buildInlineError() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.red.shade700),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: GoogleFonts.manrope(
+                fontSize: 13,
+                color: Colors.red.shade900,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: () => setState(() => _errorMessage = null),
+            color: Colors.red.shade700,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build the app bar
   PreferredSizeWidget _buildAppBar(ThemeData theme) {
     return AppBar(
-      leading: IconButton(
-        icon: const Icon(Icons.menu),
-        onPressed: () {
-          debugPrint('Menu tapped');
-          // TODO: Open drawer or menu
-        },
-        tooltip: 'Menu',
-      ),
+      leading: const AppMenuButton(),
       title: Text(
         'Dashboard',
         style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
@@ -157,18 +264,19 @@ class _DashboardScreenState extends State<DashboardScreen>
       actions: [
         IconButton(
           icon: const Icon(Icons.notifications_outlined),
-          onPressed: () {
-            debugPrint('Notifications tapped');
-            // TODO: Show notifications
-          },
+          onPressed: () => _showComingSoonDialog('Notifications'),
           tooltip: 'Notifications',
         ),
       ],
     );
   }
 
-  /// Builds the sensor clusters section
+  /// Build the sensor clusters section
   Widget _buildSensorClustersSection(ThemeData theme) {
+    if (_clusters.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -188,8 +296,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               final isSelected = cluster.id == _selectedClusterId;
               return Padding(
                 padding: const EdgeInsets.only(right: 16),
-                child: _buildClusterTab(
-                  theme: theme,
+                child: SensorClusterCard(
                   cluster: cluster,
                   isSelected: isSelected,
                   onTap: () => _onClusterSelected(cluster.id),
@@ -202,59 +309,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  /// Builds a single cluster tab
-  Widget _buildClusterTab({
-    required ThemeData theme,
-    required SensorCluster cluster,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? theme.colorScheme.primary.withOpacity(0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected
-                ? theme.colorScheme.primary
-                : theme.dividerColor.withOpacity(0.3),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              cluster.icon,
-              size: 18,
-              color: isSelected
-                  ? theme.colorScheme.primary
-                  : theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              cluster.name,
-              style: GoogleFonts.manrope(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected
-                    ? theme.colorScheme.primary
-                    : theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds the key metrics section
+  /// Build the key metrics section
   Widget _buildKeyMetricsSection(ThemeData theme) {
+    if (_currentMetrics.isEmpty) {
+      return _buildEmptyMetrics();
+    }
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Column(
@@ -275,9 +335,29 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  /// Builds the metrics grid
+  /// Build empty metrics placeholder
+  Widget _buildEmptyMetrics() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      alignment: Alignment.center,
+      child: Column(
+        children: [
+          Icon(Icons.sensors_off, size: 48, color: Colors.grey.shade400),
+          const SizedBox(height: 12),
+          Text(
+            'No metrics available',
+            style: GoogleFonts.manrope(
+              fontSize: 14,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build the metrics grid
   Widget _buildMetricsGrid(ThemeData theme) {
-    // Separate metrics into grid items and full-width item
     final gridMetrics = _currentMetrics.take(4).toList();
     final fullWidthMetric = _currentMetrics.length > 4
         ? _currentMetrics[4]
@@ -296,95 +376,18 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           itemCount: gridMetrics.length,
           itemBuilder: (context, index) {
-            return _buildMetricCard(theme, gridMetrics[index]);
+            return MetricCard(metric: gridMetrics[index]);
           },
         ),
         if (fullWidthMetric != null) ...[
           const SizedBox(height: _itemSpacing),
-          _buildMetricCard(theme, fullWidthMetric, fullWidth: true),
+          MetricCard(metric: fullWidthMetric, fullWidth: true),
         ],
       ],
     );
   }
 
-  /// Builds a single metric card
-  Widget _buildMetricCard(
-    ThemeData theme,
-    MetricData metric, {
-    bool fullWidth = false,
-  }) {
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark
-              ? theme.dividerColor.withOpacity(0.3)
-              : theme.dividerColor.withOpacity(0.1),
-          width: 1,
-        ),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            metric.title,
-            style: GoogleFonts.manrope(
-              fontSize: 12,
-              color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                metric.value,
-                style: GoogleFonts.manrope(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: metric.color ?? theme.textTheme.bodyLarge?.color,
-                  height: 1,
-                ),
-              ),
-              if (metric.unit.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Text(
-                    metric.unit,
-                    style: GoogleFonts.manrope(
-                      fontSize: 14,
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.5),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Builds the detailed data section with chart
+  /// Build the detailed data section with chart
   Widget _buildDetailedDataSection(ThemeData theme) {
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -415,9 +418,26 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  /// Builds the chart container
+  /// Build the chart container
   Widget _buildChartContainer(ThemeData theme) {
     final isDark = theme.brightness == Brightness.dark;
+
+    if (_chartData.isEmpty) {
+      return Container(
+        height: 240,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.dividerColor.withOpacity(0.2)),
+        ),
+        child: Center(
+          child: Text(
+            'No chart data available',
+            style: GoogleFonts.manrope(color: Colors.grey.shade600),
+          ),
+        ),
+      );
+    }
 
     return Container(
       height: 240,
@@ -443,14 +463,11 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Column(
         children: [
           Expanded(
-            child: CustomPaint(
-              painter: AQIChartPainter(
-                data: _chartData,
-                color: theme.colorScheme.primary,
-                backgroundColor: theme.colorScheme.surface,
-                gridColor: theme.dividerColor.withOpacity(0.2),
-              ),
-              child: Container(),
+            child: AQIWaveChart(
+              data: _chartData,
+              lineColor: theme.colorScheme.primary,
+              backgroundColor: theme.colorScheme.surface,
+              gridColor: theme.dividerColor.withOpacity(0.2),
             ),
           ),
           const SizedBox(height: 12),
@@ -460,7 +477,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  /// Builds time labels for the chart
+  /// Build time labels for the chart
   Widget _buildChartTimeLabels(ThemeData theme) {
     final labels = ['12AM', '6AM', '12PM', '6PM', '12AM'];
 
@@ -479,221 +496,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  /// Builds the bottom navigation bar
-  Widget _buildBottomNavigation(ThemeData theme) {
-    return BottomNavigationBar(
-      currentIndex: _selectedNavIndex,
-      onTap: _onNavItemTapped,
-      selectedLabelStyle: GoogleFonts.manrope(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-      ),
-      unselectedLabelStyle: GoogleFonts.manrope(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-      ),
-      type: BottomNavigationBarType.fixed,
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.dashboard_outlined),
-          activeIcon: Icon(Icons.dashboard),
-          label: 'Dashboard',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.history_outlined),
-          activeIcon: Icon(Icons.history),
-          label: 'History',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.settings_outlined),
-          activeIcon: Icon(Icons.settings),
-          label: 'Settings',
-        ),
-      ],
-    );
-  }
-
   /// Handle pull-to-refresh
   Future<void> _handleRefresh() async {
-    // Simulate data refresh
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    setState(() {
-      _currentMetrics = PlaceholderDataService.getMetricsForRoom(
-        _selectedClusterId,
-      );
-      _chartData = PlaceholderDataService.getChartData(_selectedClusterId);
-    });
-
-    _animationController.reset();
-    _animationController.forward();
-  }
-}
-
-// CHART PAINTER
-
-/// Custom painter for AQI chart visualization
-class AQIChartPainter extends CustomPainter {
-  final List<ChartDataPoint> data;
-  final Color color;
-  final Color backgroundColor;
-  final Color gridColor;
-
-  AQIChartPainter({
-    required this.data,
-    required this.color,
-    required this.backgroundColor,
-    required this.gridColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (data.isEmpty) return;
-
-    // Draw grid lines
-    _drawGrid(canvas, size);
-
-    // Draw the line chart
-    _drawLineChart(canvas, size);
-
-    // Draw area under the curve
-    _drawAreaChart(canvas, size);
-
-    // Draw data points
-    _drawDataPoints(canvas, size);
-  }
-
-  /// Draw grid lines
-  void _drawGrid(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = gridColor
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-
-    // Horizontal grid lines
-    for (int i = 0; i <= 4; i++) {
-      final y = size.height * (i / 4);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-  }
-
-  /// Draw the line chart
-  void _drawLineChart(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = color
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final path = _createChartPath(size);
-    canvas.drawPath(path, linePaint);
-  }
-
-  /// Draw area under the curve
-  void _drawAreaChart(Canvas canvas, Size size) {
-    final areaPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [color.withOpacity(0.3), color.withOpacity(0.05)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.fill;
-
-    final path = _createChartPath(size);
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
-    path.close();
-
-    canvas.drawPath(path, areaPaint);
-  }
-
-  /// Draw data points
-  void _drawDataPoints(Canvas canvas, Size size) {
-    final pointPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final outerPointPaint = Paint()
-      ..color = backgroundColor
-      ..style = PaintingStyle.fill;
-
-    // Draw points at specific hours: 12AM, 6AM, 12PM, 6PM, 12AM
-    final pointHours = [0, 6, 12, 18, 24];
-
-    for (final hour in pointHours) {
-      // Find the data point closest to this hour
-      final dataPoint = data.firstWhere(
-        (p) => p.x == hour.toDouble(),
-        orElse: () => data.first,
-      );
-
-      final point = _getScreenPosition(dataPoint, size);
-
-      // Outer circle (background color)
-      canvas.drawCircle(point, 4.5, outerPointPaint);
-      // Inner colored circle
-      canvas.drawCircle(point, 3, pointPaint);
-    }
-  }
-
-  /// Create the chart path
-  Path _createChartPath(Size size) {
-    final path = Path();
-    final minY = data.map((p) => p.y).reduce(math.min);
-    final maxY = data.map((p) => p.y).reduce(math.max);
-    final yRange = maxY - minY;
-
-    if (data.isEmpty) return path;
-
-    // Start point
-    final firstPoint = _getScreenPosition(data.first, size);
-    path.moveTo(firstPoint.dx, firstPoint.dy);
-
-    // Create smooth curve using quadratic bezier
-    for (int i = 0; i < data.length - 1; i++) {
-      final current = _getScreenPosition(data[i], size);
-      final next = _getScreenPosition(data[i + 1], size);
-
-      final controlPointX = (current.dx + next.dx) / 2;
-      final controlPointY = (current.dy + next.dy) / 2;
-
-      path.quadraticBezierTo(
-        current.dx,
-        current.dy,
-        controlPointX,
-        controlPointY,
-      );
-    }
-
-    // Final point
-    final lastPoint = _getScreenPosition(data.last, size);
-    path.lineTo(lastPoint.dx, lastPoint.dy);
-
-    return path;
-  }
-
-  /// Convert data point to screen coordinates
-  Offset _getScreenPosition(ChartDataPoint point, Size size) {
-    final minY = data.map((p) => p.y).reduce(math.min);
-    final maxY = data.map((p) => p.y).reduce(math.max);
-    final yRange = maxY - minY;
-
-    // Add padding to y range
-    final paddedMin = minY - yRange * 0.1;
-    final paddedMax = maxY + yRange * 0.1;
-    final paddedRange = paddedMax - paddedMin;
-
-    final x = (point.x / 24) * size.width;
-    final y = size.height - ((point.y - paddedMin) / paddedRange * size.height);
-
-    return Offset(x, y);
-  }
-
-  @override
-  bool shouldRepaint(covariant AQIChartPainter oldDelegate) {
-    return oldDelegate.data != data ||
-        oldDelegate.color != color ||
-        oldDelegate.backgroundColor != backgroundColor;
+    await _initializeData();
   }
 }
