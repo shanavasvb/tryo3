@@ -1,11 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tryo3_app/repositories/data_repository.dart';
+import 'package:tryo3_app/providers/app_providers.dart';
 import 'package:tryo3_app/services/placeholder_data_service.dart';
-
-/// Provider for DataRepository instance
-final dataRepositoryProvider = Provider<DataRepository>((ref) {
-  return DataRepository();
-});
 
 /// State for selected cluster ID
 class SelectedClusterNotifier extends StateNotifier<String?> {

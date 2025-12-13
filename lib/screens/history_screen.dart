@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tryo3_app/providers/history_providers.dart';
+import 'package:tryo3_app/services/placeholder_data_service.dart';
 import 'package:tryo3_app/widgets/app_bottom_nav_bar.dart';
 import 'package:tryo3_app/widgets/app_menu_button.dart';
 import 'package:tryo3_app/widgets/history/environmental_score_card.dart';
@@ -7,34 +10,19 @@ import 'package:tryo3_app/widgets/history/filter_chip_row.dart';
 import 'package:tryo3_app/widgets/history/history_chart.dart';
 import 'package:tryo3_app/widgets/history/daily_summary_tile.dart';
 import 'package:tryo3_app/widgets/history/date_range_picker_dialog.dart';
-import 'package:tryo3_app/services/placeholder_data_service.dart';
 import 'package:tryo3_app/themes/theme.dart';
 
 /// History screen showing environmental data trends over time
-class HistoryScreen extends StatefulWidget {
+class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
-  // State
-  HistoryFilter _selectedFilter = HistoryFilter.thisWeek;
-  DateTimeRange? _customDateRange;
-  bool _isLoading = true;
-  String? _errorMessage;
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  // UI state only
   final TextEditingController _dateRangeController = TextEditingController();
-
-  // Data
-  EnvironmentalScore _environmentalScore = const EnvironmentalScore(
-    score: 0,
-    changePercent: 0,
-    isPositive: true,
-  );
-  List<ChartDataPoint> _chartData = [];
-  List<String> _chartLabels = [];
-  List<DailySummary> _dailySummaries = [];
 
   // Design constants
   static const double _horizontalPadding = 20.0;
@@ -46,8 +34,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
-    _updateDateRangeText();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateDateRangeText();
+    });
   }
 
   @override
@@ -56,78 +45,33 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.dispose();
   }
 
-  /// Load data based on current filter
-  Future<void> _loadData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
 
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      final score = PlaceholderDataService.getEnvironmentalScore(
-        _selectedFilter,
-        dateRange: _customDateRange,
-      );
-      final chartData = PlaceholderDataService.getHistoryChartData(
-        _selectedFilter,
-        dateRange: _customDateRange,
-      );
-      final labels = PlaceholderDataService.getChartLabels(
-        _selectedFilter,
-        dateRange: _customDateRange,
-      );
-      final summaries = PlaceholderDataService.getDailySummaries(
-        filter: _selectedFilter,
-        dateRange: _customDateRange,
-      );
-
-      if (mounted) {
-        setState(() {
-          _environmentalScore = score;
-          _chartData = chartData;
-          _chartLabels = labels;
-          _dailySummaries = summaries;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'Failed to load history data';
-        });
-      }
-      debugPrint('Error loading history data: $e');
-    }
-  }
 
   /// Update date range text in controller
   void _updateDateRangeText() {
-    if (_selectedFilter == HistoryFilter.custom && _customDateRange != null) {
-      _dateRangeController.text = _formatDateRange(_customDateRange!);
+    final selectedFilter = ref.read(selectedFilterProvider);
+    final customDateRange = ref.read(customDateRangeProvider);
+    
+    if (selectedFilter == HistoryFilter.custom && customDateRange != null) {
+      _dateRangeController.text = _formatDateRange(customDateRange);
     } else {
-      _dateRangeController.text = _selectedFilter.label;
+      _dateRangeController.text = selectedFilter.label;
     }
   }
 
   /// Handle filter selection
-  Future<void> _onFilterSelected(HistoryFilter filter) async {
-    if (_selectedFilter == filter) return;
+  void _onFilterSelected(HistoryFilter filter) {
+    final currentFilter = ref.read(selectedFilterProvider);
+    if (currentFilter == filter) return;
 
     if (filter == HistoryFilter.custom) {
-      await _showDateRangePicker();
+      _showDateRangePicker();
       return;
     }
 
-    setState(() {
-      _selectedFilter = filter;
-      _customDateRange = null;
-      _updateDateRangeText();
-    });
-
-    await _loadData();
+    ref.read(selectedFilterProvider.notifier).selectFilter(filter);
+    ref.read(customDateRangeProvider.notifier).setDateRange(null);
+    _updateDateRangeText();
   }
 
   /// Show date range picker
@@ -135,9 +79,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final now = DateTime.now();
     final firstDate = DateTime(now.year - 1, now.month, now.day);
     final lastDate = now;
-
+    
+    final customDateRange = ref.read(customDateRangeProvider);
     final initialRange =
-        _customDateRange ??
+        customDateRange ??
         DateTimeRange(start: now.subtract(const Duration(days: 7)), end: now);
 
     final result = await showDialog<DateTimeRange?>(
@@ -150,13 +95,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
 
     if (result != null && mounted) {
-      setState(() {
-        _selectedFilter = HistoryFilter.custom;
-        _customDateRange = result;
-        _updateDateRangeText();
-      });
-
-      await _loadData();
+      ref.read(selectedFilterProvider.notifier).selectFilter(HistoryFilter.custom);
+      ref.read(customDateRangeProvider.notifier).setDateRange(result);
+      _updateDateRangeText();
     }
   }
 
@@ -217,7 +158,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   /// Build the main body
   Widget _buildBody(bool isDark) {
-    if (_isLoading && _chartData.isEmpty) {
+    final scoreAsync = ref.watch(environmentalScoreProvider);
+    final chartDataAsync = ref.watch(historyChartDataProvider);
+    final chartLabelsAsync = ref.watch(historyChartLabelsProvider);
+    final summariesAsync = ref.watch(dailySummariesProvider);
+
+    // Check if initial load
+    final isInitialLoading = scoreAsync.isLoading && 
+                             chartDataAsync.isLoading && 
+                             summariesAsync.isLoading;
+
+    if (isInitialLoading) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -241,10 +192,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
     }
 
-    if (_errorMessage != null && _chartData.isEmpty) {
-      return _buildErrorState(isDark);
-    }
-
     return RefreshIndicator(
       onRefresh: _handleRefresh,
       color: AppTheme.primaryColor,
@@ -259,29 +206,49 @@ class _HistoryScreenState extends State<HistoryScreen> {
           children: [
             _buildFilterSection(isDark),
             const SizedBox(height: _sectionSpacing),
-            if (_isLoading)
-              _buildLoadingIndicator(isDark)
-            else if (_errorMessage != null)
-              _buildInlineError(isDark)
-            else ...[
-              EnvironmentalScoreCard(
-                score: _environmentalScore,
-                isDarkMode: isDark,
-              ),
-              const SizedBox(height: _sectionSpacing),
-              HistoryChart(
-                chartData: _chartData,
-                chartLabels: _chartLabels,
-                isDarkMode: isDark,
-                height: _chartHeight,
-              ),
-              const SizedBox(height: _sectionSpacing),
-              _buildDailySummarySection(isDark),
-            ],
+            _buildScoreSection(isDark, scoreAsync),
+            const SizedBox(height: _sectionSpacing),
+            _buildChartSection(isDark, chartDataAsync, chartLabelsAsync),
+            const SizedBox(height: _sectionSpacing),
+            _buildDailySummarySection(isDark, summariesAsync),
             const SizedBox(height: _horizontalPadding),
           ],
         ),
       ),
+    );
+  }
+
+  /// Build environmental score section
+  Widget _buildScoreSection(bool isDark, AsyncValue<EnvironmentalScore> scoreAsync) {
+    return scoreAsync.when(
+      data: (score) => EnvironmentalScoreCard(
+        score: score,
+        isDarkMode: isDark,
+      ),
+      loading: () => _buildLoadingIndicator(isDark),
+      error: (error, stack) => _buildInlineError(isDark, error.toString()),
+    );
+  }
+
+  /// Build chart section
+  Widget _buildChartSection(
+    bool isDark,
+    AsyncValue<List<ChartDataPoint>> chartDataAsync,
+    AsyncValue<List<String>> chartLabelsAsync,
+  ) {
+    return chartDataAsync.when(
+      data: (chartData) => chartLabelsAsync.when(
+        data: (chartLabels) => HistoryChart(
+          chartData: chartData,
+          chartLabels: chartLabels,
+          isDarkMode: isDark,
+          height: _chartHeight,
+        ),
+        loading: () => _buildLoadingIndicator(isDark),
+        error: (error, stack) => _buildInlineError(isDark, error.toString()),
+      ),
+      loading: () => _buildLoadingIndicator(isDark),
+      error: (error, stack) => _buildInlineError(isDark, error.toString()),
     );
   }
 
@@ -312,71 +279,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  /// Build error state widget
-  Widget _buildErrorState(bool isDark) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red.withOpacity(0.7),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Unable to Load Data',
-              style: GoogleFonts.manrope(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppTheme.darkTextColor
-                    : AppTheme.lightTextColor,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage ?? 'An unknown error occurred',
-              style: GoogleFonts.manrope(
-                fontSize: 14,
-                color: isDark
-                    ? AppTheme.darkTextColor.withOpacity(0.6)
-                    : AppTheme.lightTextColor.withOpacity(0.6),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _loadData,
-              icon: const Icon(Icons.refresh),
-              label: Text(
-                'Retry',
-                style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isDark
-                    ? AppTheme.darkbtnColor
-                    : AppTheme.lightbtnColor,
-                foregroundColor: AppTheme.darkTextColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// Build inline error widget
-  Widget _buildInlineError(bool isDark) {
+  Widget _buildInlineError(bool isDark, String errorMessage) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
       padding: const EdgeInsets.all(16),
@@ -391,14 +295,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              _errorMessage!,
+              errorMessage,
               style: GoogleFonts.manrope(fontSize: 13, color: Colors.red),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 20),
-            onPressed: () => setState(() => _errorMessage = null),
-            color: Colors.red,
           ),
         ],
       ),
@@ -471,7 +370,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ),
           FilterChipRow(
-            selectedFilter: _selectedFilter,
+            selectedFilter: ref.watch(selectedFilterProvider),
             onSelect: _onFilterSelected,
             isDarkMode: isDark,
           ),
@@ -481,39 +380,43 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   /// Build daily summary section
-  Widget _buildDailySummarySection(bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Daily Summary',
-              style: GoogleFonts.manrope(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: isDark
-                    ? AppTheme.darkTextColor
-                    : AppTheme.lightTextColor,
+  Widget _buildDailySummarySection(bool isDark, AsyncValue<List<DailySummary>> summariesAsync) {
+    return summariesAsync.when(
+      data: (summaries) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Daily Summary',
+                style: GoogleFonts.manrope(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? AppTheme.darkTextColor
+                      : AppTheme.lightTextColor,
+                ),
               ),
-            ),
-            Text(
-              '${_dailySummaries.length} days',
-              style: GoogleFonts.manrope(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.primaryColor,
+              Text(
+                '${summaries.length} days',
+                style: GoogleFonts.manrope(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryColor,
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: _itemSpacing),
-        if (_dailySummaries.isEmpty)
-          _buildEmptySummaryState(isDark)
-        else
-          _buildSummaryList(),
-      ],
+            ],
+          ),
+          const SizedBox(height: _itemSpacing),
+          if (summaries.isEmpty)
+            _buildEmptySummaryState(isDark)
+          else
+            _buildSummaryList(summaries),
+        ],
+      ),
+      loading: () => _buildLoadingIndicator(isDark),
+      error: (error, stack) => _buildInlineError(isDark, error.toString()),
     );
   }
 
@@ -562,21 +465,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildSummaryList() {
+  Widget _buildSummaryList(List<DailySummary> summaries) {
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _dailySummaries.length,
+      itemCount: summaries.length,
       separatorBuilder: (_, __) => const SizedBox(height: _itemSpacing),
       itemBuilder: (context, index) => DailySummaryTile(
-        summary: _dailySummaries[index],
+        summary: summaries[index],
         isFirst: index == 0,
-        isLast: index == _dailySummaries.length - 1,
+        isLast: index == summaries.length - 1,
       ),
     );
   }
 
   Future<void> _handleRefresh() async {
-    await _loadData();
+    ref.invalidate(environmentalScoreProvider);
+    ref.invalidate(historyChartDataProvider);
+    ref.invalidate(historyChartLabelsProvider);
+    ref.invalidate(dailySummariesProvider);
   }
 }
