@@ -23,7 +23,17 @@ class SensorClustersNotifier
   @override
   Future<List<SensorCluster>> build() async {
     final repository = ref.read(dataRepositoryProvider);
-    return repository.fetchSensorClusters();
+    final clusters = await repository.fetchSensorClusters();
+    
+    // Auto-select first cluster if none selected
+    final currentSelection = ref.read(selectedClusterProvider);
+    if (currentSelection == null && clusters.isNotEmpty) {
+      Future.microtask(() {
+        ref.read(selectedClusterProvider.notifier).selectCluster(clusters.first.id);
+      });
+    }
+    
+    return clusters;
   }
 
   Future<void> refresh() async {

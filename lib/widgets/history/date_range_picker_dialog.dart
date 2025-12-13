@@ -45,12 +45,22 @@ class _CustomDateRangePickerDialogState
   }
 
   void _nextMonth() {
+    final nextMonth = DateTime(_currentMonth.year, _currentMonth.month + 1);
+    final now = DateTime.now();
+    final currentMonth = DateTime(now.year, now.month);
+    
+    // Don't navigate beyond current month
+    if (nextMonth.isAfter(currentMonth)) return;
+    
     setState(() {
-      _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1);
+      _currentMonth = nextMonth;
     });
   }
 
   void _selectDate(DateTime date) {
+    // Don't allow selecting future dates
+    if (date.isAfter(DateTime.now())) return;
+    
     setState(() {
       if (_selectingStart) {
         _startDate = date;
@@ -83,6 +93,13 @@ class _CustomDateRangePickerDialogState
 
   bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  bool _isFutureDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final checkDate = DateTime(date.year, date.month, date.day);
+    return checkDate.isAfter(today);
   }
 
   String _getMonthYear() {
@@ -225,9 +242,10 @@ class _CustomDateRangePickerDialogState
                 final isSelected = _isSelected(date);
                 final isInRange = _isInRange(date);
                 final isToday = _isSameDay(date, DateTime.now());
+                final isFuture = _isFutureDate(date);
 
                 return GestureDetector(
-                  onTap: () => _selectDate(date),
+                  onTap: isFuture ? null : () => _selectDate(date),
                   child: Container(
                     width: 36,
                     height: 36,
@@ -249,11 +267,16 @@ class _CustomDateRangePickerDialogState
                           fontSize: 14,
                           fontWeight:
                               isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected
-                              ? Colors.white
-                              : (isDark
-                                  ? AppTheme.darkTextColor
-                                  : AppTheme.lightTextColor),
+                          color: isFuture
+                              ? (isDark
+                                      ? AppTheme.darkTextColor
+                                      : AppTheme.lightTextColor)
+                                  .withOpacity(0.3)
+                              : isSelected
+                                  ? Colors.white
+                                  : isDark
+                                      ? AppTheme.darkTextColor
+                                      : AppTheme.lightTextColor,
                         ),
                       ),
                     ),

@@ -466,15 +466,18 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   Widget _buildSummaryList(List<DailySummary> summaries) {
+    // Reverse to show most recent first (e.g., 11 Dec before 7 Dec)
+    final reversedSummaries = summaries.reversed.toList();
+    
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: summaries.length,
+      itemCount: reversedSummaries.length,
       separatorBuilder: (_, __) => const SizedBox(height: _itemSpacing),
       itemBuilder: (context, index) => DailySummaryTile(
-        summary: summaries[index],
+        summary: reversedSummaries[index],
         isFirst: index == 0,
-        isLast: index == summaries.length - 1,
+        isLast: index == reversedSummaries.length - 1,
       ),
     );
   }

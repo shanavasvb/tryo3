@@ -241,9 +241,7 @@ class PlaceholderDataService {
     }
   }
 
-  // ==========================================
   // HISTORY DATA
-  // ==========================================
 
   /// Day labels for the week
   static const List<String> weekDayLabels = [
@@ -405,9 +403,7 @@ class PlaceholderDataService {
     }
   }
 
-  // ==========================================
   // PRIVATE HELPER METHODS
-  // ==========================================
 
   /// Get base AQI value for a room
   static int _getBaseAQI(String roomId) {
