@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tryo3_app/providers/dashboard_providers.dart';
+import 'package:tryo3_app/services/placeholder_data_service.dart';
 import 'package:tryo3_app/widgets/app_bottom_nav_bar.dart';
 import 'package:tryo3_app/widgets/app_menu_button.dart';
 import 'package:tryo3_app/widgets/dashboard/metric_card.dart';
@@ -7,25 +10,17 @@ import 'package:tryo3_app/widgets/dashboard/sensor_cluster_card.dart';
 import 'package:tryo3_app/widgets/dashboard/aqi_wave_chart.dart';
 import 'package:tryo3_app/widgets/common/error_state_widget.dart';
 import 'package:tryo3_app/widgets/common/loading_indicator.dart';
-import '../services/placeholder_data_service.dart';
 
 /// Dashboard screen showing sensor clusters and real-time metrics
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen>
+class _DashboardScreenState extends ConsumerState<DashboardScreen>
     with SingleTickerProviderStateMixin {
-  // State variables
-  List<SensorCluster> _clusters = [];
-  String? _selectedClusterId;
-  List<MetricData> _currentMetrics = [];
-  List<ChartDataPoint> _chartData = [];
-  bool _isLoading = true;
-  String? _errorMessage;
 
   // Animation controller
   late AnimationController _animationController;
@@ -40,7 +35,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   void initState() {
     super.initState();
     _initializeAnimations();
-    _initializeData();
   }
 
   @override
@@ -59,84 +53,23 @@ class _DashboardScreenState extends State<DashboardScreen>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
+    
+    // Start animation when metrics are loaded
+    _animationController.forward();
   }
 
-  /// Initialize placeholder data with error handling
-  Future<void> _initializeData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
 
-      // Simulate network delay for realistic behavior
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      final clusters = PlaceholderDataService.getSensorClusters();
-
-      if (clusters.isEmpty) {
-        throw Exception('No sensor clusters available');
-      }
-
-      final selectedId = clusters.first.id;
-      final metrics = PlaceholderDataService.getMetricsForRoom(selectedId);
-      final chartData = PlaceholderDataService.getChartData(selectedId);
-
-      setState(() {
-        _clusters = clusters;
-        _selectedClusterId = selectedId;
-        _currentMetrics = metrics;
-        _chartData = chartData;
-        _isLoading = false;
-      });
-
-      _animationController.forward();
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Failed to load dashboard data: ${e.toString()}';
-      });
-      debugPrint('Error initializing data: $e');
-    }
-  }
 
   /// Handle room/cluster selection
-  Future<void> _onClusterSelected(String clusterId) async {
-    if (_selectedClusterId == clusterId) return;
+  void _onClusterSelected(String clusterId) {
+    final currentCluster = ref.read(selectedClusterProvider);
+    if (currentCluster == clusterId) return;
 
-    try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
+    ref.read(selectedClusterProvider.notifier).selectCluster(clusterId);
 
-      // Simulate data fetch
-      await Future.delayed(const Duration(milliseconds: 300));
-
-      final metrics = PlaceholderDataService.getMetricsForRoom(clusterId);
-      final chartData = PlaceholderDataService.getChartData(clusterId);
-
-      if (metrics.isEmpty) {
-        throw Exception('No metrics available for this cluster');
-      }
-
-      setState(() {
-        _selectedClusterId = clusterId;
-        _currentMetrics = metrics;
-        _chartData = chartData;
-        _isLoading = false;
-      });
-
-      // Replay animation for smooth transition
-      _animationController.reset();
-      _animationController.forward();
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Failed to load cluster data';
-      });
-      debugPrint('Error selecting cluster: $e');
-    }
+    // Replay animation for smooth transition
+    _animationController.reset();
+    _animationController.forward();
   }
 
   /// Show coming soon dialog for unimplemented features
@@ -178,75 +111,40 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   /// Build the main body with loading/error states
   Widget _buildBody(ThemeData theme) {
-    if (_isLoading && _clusters.isEmpty) {
-      return const LoadingIndicator();
-    }
+    final clustersAsync = ref.watch(sensorClustersProvider);
 
-    if (_errorMessage != null && _clusters.isEmpty) {
-      return ErrorStateWidget(
-        message: _errorMessage ?? 'An unknown error occurred',
-        onRetry: _initializeData,
-      );
-    }
+    return clustersAsync.when(
+      data: (clusters) {
+        if (clusters.isEmpty) {
+          return ErrorStateWidget(
+            message: 'No sensor clusters available',
+            onRetry: () => ref.invalidate(sensorClustersProvider),
+          );
+        }
 
-    return RefreshIndicator(
-      onRefresh: _handleRefresh,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(_horizontalPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSensorClustersSection(theme),
-            const SizedBox(height: _sectionSpacing),
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.all(32.0),
-                child: LoadingIndicator(),
-              )
-            else if (_errorMessage != null)
-              _buildInlineError()
-            else ...[
-              _buildKeyMetricsSection(theme),
-              const SizedBox(height: _sectionSpacing),
-              _buildDetailedDataSection(theme),
-            ],
-            const SizedBox(height: _horizontalPadding),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Build inline error widget
-  Widget _buildInlineError() {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade200),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, color: Colors.red.shade700),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              _errorMessage!,
-              style: GoogleFonts.manrope(
-                fontSize: 13,
-                color: Colors.red.shade900,
-              ),
+        return RefreshIndicator(
+          onRefresh: _handleRefresh,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(_horizontalPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSensorClustersSection(theme, clusters),
+                const SizedBox(height: _sectionSpacing),
+                _buildKeyMetricsSection(theme),
+                const SizedBox(height: _sectionSpacing),
+                _buildDetailedDataSection(theme),
+                const SizedBox(height: _horizontalPadding),
+              ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 20),
-            onPressed: () => setState(() => _errorMessage = null),
-            color: Colors.red.shade700,
-          ),
-        ],
+        );
+      },
+      loading: () => const LoadingIndicator(),
+      error: (error, stack) => ErrorStateWidget(
+        message: 'Failed to load dashboard data: $error',
+        onRetry: () => ref.invalidate(sensorClustersProvider),
       ),
     );
   }
@@ -272,10 +170,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   /// Build the sensor clusters section
-  Widget _buildSensorClustersSection(ThemeData theme) {
-    if (_clusters.isEmpty) {
-      return const SizedBox.shrink();
-    }
+  Widget _buildSensorClustersSection(ThemeData theme, List<SensorCluster> clusters) {
+    final selectedCluster = ref.watch(selectedClusterProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,8 +188,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            children: _clusters.map((cluster) {
-              final isSelected = cluster.id == _selectedClusterId;
+            children: clusters.map((cluster) {
+              final isSelected = cluster.id == selectedCluster;
               return Padding(
                 padding: const EdgeInsets.only(right: 16),
                 child: SensorClusterCard(
@@ -311,26 +207,43 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   /// Build the key metrics section
   Widget _buildKeyMetricsSection(ThemeData theme) {
-    if (_currentMetrics.isEmpty) {
-      return _buildEmptyMetrics();
-    }
+    final metricsAsync = ref.watch(metricsProvider);
 
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Key Metrics',
-            style: GoogleFonts.manrope(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: theme.textTheme.bodyLarge?.color,
-            ),
+    return metricsAsync.when(
+      data: (metrics) {
+        if (metrics.isEmpty) {
+          return _buildEmptyMetrics();
+        }
+
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Key Metrics',
+                style: GoogleFonts.manrope(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: theme.textTheme.bodyLarge?.color,
+                ),
+              ),
+              const SizedBox(height: _itemSpacing),
+              _buildMetricsGrid(theme, metrics),
+            ],
           ),
-          const SizedBox(height: _itemSpacing),
-          _buildMetricsGrid(theme),
-        ],
+        );
+      },
+      loading: () => const Padding(
+        padding: EdgeInsets.all(32.0),
+        child: LoadingIndicator(),
+      ),
+      error: (error, stack) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          'Failed to load metrics: $error',
+          style: GoogleFonts.manrope(color: Colors.red),
+        ),
       ),
     );
   }
@@ -357,10 +270,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   /// Build the metrics grid
-  Widget _buildMetricsGrid(ThemeData theme) {
-    final gridMetrics = _currentMetrics.take(4).toList();
-    final fullWidthMetric = _currentMetrics.length > 4
-        ? _currentMetrics[4]
+  Widget _buildMetricsGrid(ThemeData theme, List<MetricData> metrics) {
+    final gridMetrics = metrics.take(4).toList();
+    final fullWidthMetric = metrics.length > 4
+        ? metrics[4]
         : null;
 
     return Column(
@@ -389,6 +302,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   /// Build the detailed data section with chart
   Widget _buildDetailedDataSection(ThemeData theme) {
+    final chartDataAsync = ref.watch(chartDataProvider);
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Column(
@@ -412,17 +327,33 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ),
           const SizedBox(height: _itemSpacing),
-          _buildChartContainer(theme),
+          chartDataAsync.when(
+            data: (chartData) => _buildChartContainer(theme, chartData),
+            loading: () => const SizedBox(
+              height: 240,
+              child: Center(child: LoadingIndicator()),
+            ),
+            error: (error, stack) => Container(
+              height: 240,
+              padding: const EdgeInsets.all(16),
+              child: Center(
+                child: Text(
+                  'Failed to load chart data',
+                  style: GoogleFonts.manrope(color: Colors.red),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   /// Build the chart container
-  Widget _buildChartContainer(ThemeData theme) {
+  Widget _buildChartContainer(ThemeData theme, List<ChartDataPoint> chartData) {
     final isDark = theme.brightness == Brightness.dark;
 
-    if (_chartData.isEmpty) {
+    if (chartData.isEmpty) {
       return Container(
         height: 240,
         decoration: BoxDecoration(
@@ -464,7 +395,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         children: [
           Expanded(
             child: AQIWaveChart(
-              data: _chartData,
+              data: chartData,
               lineColor: theme.colorScheme.primary,
               backgroundColor: theme.colorScheme.surface,
               gridColor: theme.dividerColor.withOpacity(0.2),
@@ -498,6 +429,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   /// Handle pull-to-refresh
   Future<void> _handleRefresh() async {
-    await _initializeData();
+    ref.invalidate(sensorClustersProvider);
+    ref.invalidate(metricsProvider);
+    ref.invalidate(chartDataProvider);
   }
 }
