@@ -5,6 +5,7 @@ import 'package:tryo3_app/providers/dashboard_providers.dart';
 import 'package:tryo3_app/services/placeholder_data_service.dart';
 import 'package:tryo3_app/widgets/app_bottom_nav_bar.dart';
 import 'package:tryo3_app/widgets/app_menu_button.dart';
+import 'package:tryo3_app/widgets/app_drawer.dart';
 import 'package:tryo3_app/widgets/dashboard/metric_card.dart';
 import 'package:tryo3_app/widgets/dashboard/sensor_cluster_card.dart';
 import 'package:tryo3_app/widgets/dashboard/aqi_wave_chart.dart';
@@ -104,6 +105,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
     return Scaffold(
       appBar: _buildAppBar(theme),
+      drawer: const AppDrawer(),
       body: _buildBody(theme),
       bottomNavigationBar: const AppBottomNavBar(currentIndex: 0),
     );
@@ -275,6 +277,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final fullWidthMetric = metrics.length > 4
         ? metrics[4]
         : null;
+    
+    // Get room name from selected cluster
+    final selectedClusterId = ref.watch(selectedClusterProvider);
+    final clustersAsync = ref.watch(sensorClustersProvider);
+    String? roomName;
+    
+    clustersAsync.whenData((clusters) {
+      final selectedCluster = clusters.firstWhere(
+        (c) => c.id == selectedClusterId,
+        orElse: () => clusters.first,
+      );
+      roomName = selectedCluster.name;
+    });
 
     return Column(
       children: [
@@ -289,12 +304,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           ),
           itemCount: gridMetrics.length,
           itemBuilder: (context, index) {
-            return MetricCard(metric: gridMetrics[index]);
+            return MetricCard(metric: gridMetrics[index], roomName: roomName);
           },
         ),
         if (fullWidthMetric != null) ...[
           const SizedBox(height: _itemSpacing),
-          MetricCard(metric: fullWidthMetric, fullWidth: true),
+          MetricCard(metric: fullWidthMetric, fullWidth: true, roomName: roomName),
         ],
       ],
     );

@@ -1,20 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tryo3_app/screens/sensor_detail_screen.dart';
 import '../../services/placeholder_data_service.dart';
 
 /// Displays an individual metric card with title, value, and unit
 class MetricCard extends StatelessWidget {
   final MetricData metric;
   final bool fullWidth;
+  final String? roomName;
 
-  const MetricCard({super.key, required this.metric, this.fullWidth = false});
+  const MetricCard({super.key, required this.metric, this.fullWidth = false, this.roomName});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Container(
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SensorDetailScreen(
+              metric: metric,
+              roomName: roomName,
+            ),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -82,6 +97,7 @@ class MetricCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
       ),
     );
   }

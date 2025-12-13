@@ -10,7 +10,7 @@ class AppMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.menu),
-      onPressed: onPressed ?? () => _showComingSoonDialog(context),
+      onPressed: onPressed ?? () => Scaffold.of(context).openDrawer(),
       tooltip: 'Menu',
     );
   }

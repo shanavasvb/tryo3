@@ -120,12 +120,6 @@ class PlaceholderDataService {
   // Constants
   static const int _minAQI = 40;
   static const int _maxAQI = 130;
-  static const int _minTemp = 18;
-  static const int _maxTemp = 28;
-  static const int _minLux = 100;
-  static const int _maxLux = 500;
-  static const int _minNoise = 30;
-  static const int _maxNoise = 60;
 
   // DASHBOARD DATA
 

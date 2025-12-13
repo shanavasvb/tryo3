@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tryo3_app/screens/dashboard_screen.dart';
 import 'package:tryo3_app/screens/history_screen.dart';
+import 'package:tryo3_app/screens/settings_screen.dart';
 
 /// Reusable bottom navigation bar for the app.
 ///
@@ -62,8 +63,11 @@ class AppBottomNavBar extends StatelessWidget {
         );
         break;
       case 2:
-        // TODO: Navigate to Settings
-        debugPrint('Settings selected');
+        // Navigate to Settings
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const SettingsScreen()),
+        );
         break;
     }
   }

@@ -5,6 +5,7 @@ import 'package:tryo3_app/providers/history_providers.dart';
 import 'package:tryo3_app/services/placeholder_data_service.dart';
 import 'package:tryo3_app/widgets/app_bottom_nav_bar.dart';
 import 'package:tryo3_app/widgets/app_menu_button.dart';
+import 'package:tryo3_app/widgets/app_drawer.dart';
 import 'package:tryo3_app/widgets/history/environmental_score_card.dart';
 import 'package:tryo3_app/widgets/history/filter_chip_row.dart';
 import 'package:tryo3_app/widgets/history/history_chart.dart';
@@ -151,6 +152,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     return Scaffold(
       appBar: _buildAppBar(isDark),
+      drawer: const AppDrawer(),
       body: _buildBody(isDark),
       bottomNavigationBar: const AppBottomNavBar(currentIndex: 1),
     );
